@@ -72,6 +72,7 @@ function botr_admin_head() {
   $logic_url = plugins_url('logic.js', __FILE__);
   $style_url = plugins_url('style.css', __FILE__);
   $plugin_url = plugins_url('', __FILE__);
+  $api_proxy = admin_url( 'admin-ajax.php?action=do_jw_player_method' );
   $content_mask = botr_get_content_mask();
   $nr_videos = get_option('botr_nr_videos');
 
@@ -83,6 +84,7 @@ function botr_admin_head() {
 
   <script type='text/javascript'>
     botr.plugin_url = '<?php echo $plugin_url;?>';
+    botr.api_proxy = '<?php echo $api_proxy;?>';
     botr.content_mask = '<?php echo $content_mask;?>';
     botr.nr_videos = <?php echo $nr_videos;?>;
   </script>
@@ -523,5 +525,68 @@ function botr_media_handle() {
   return wp_iframe('media_botr_page');
 }
 add_action('media_upload_botr', 'botr_media_handle');
+
+
+// PressLabs - use WordPress standard handling of AJAX calls
+function botr_handle_ajax_calls() {
+  if ($_GET['method'] == 'upload_ready') {
+    // This supplies a valid target for the redirect after the upload call.
+    echo '{ "status" : "ok" }';
+  } else {
+    $BOTR_PROXY_METHODS = array(
+      '/videos/list',
+      '/channels/list',
+      '/videos/create',
+      '/videos/thumbnails/show',
+      '/players/list',
+    );
+
+    if (!current_user_can('edit_posts')) {
+      echo botr_json_error('Access denied');
+      return;
+    }
+
+    $method = $_GET['method'];
+
+    if ($method === null) {
+      echo botr_json_error('Method was not specified');
+      return;
+    }
+
+    if (!in_array($method, $BOTR_PROXY_METHODS)) {
+      echo botr_json_error('Access denied');
+      return;
+    }
+
+    $botr_api = botr_get_api_instance();
+
+    if ($botr_api === null) {
+      echo botr_json_error('Enter your API key and secret first');
+      return;
+    }
+
+    $params = array();
+
+    foreach ($_GET as $name => $value) {
+      if ($name != 'method') {
+        $params[$name] = $value;
+      }
+    }
+
+    $params['api_format'] = 'php';
+    $response = $botr_api->call($method, $params);
+    echo json_encode($response);
+  }
+  exit;
+}
+
+add_action( 'wp_ajax_do_jw_player_method', 'botr_handle_ajax_calls' );
+add_action( 'wp_ajax_nopriv_do_jw_player_method', 'botr_handle_ajax_calls' );
+
+
+function botr_json_error($message) {
+  $message = json_encode($message);
+  return '{ "status" : "error", "message" : ' . $message . '}';
+}
 
 ?>

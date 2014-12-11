@@ -551,7 +551,6 @@ botr = {
 };
 
 $(function() {
-  botr.api_proxy = botr.plugin_url + '/proxy.php';
 
   botr.widgets = {
     box : $('#botr-video-box'),
